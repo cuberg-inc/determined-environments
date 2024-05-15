@@ -5,7 +5,7 @@ SHORT_GIT_HASH := $(shell git rev-parse --short HEAD)
 
 NGC_REGISTRY := nvcr.io/isv-ngc-partner/determined
 NGC_PUBLISH := 1
-export DOCKERHUB_REGISTRY := us-west1-docker.pkg.dev/core-data-production
+export DOCKERHUB_REGISTRY := us-west1-docker.pkg.dev/core-data-production/determined
 export REGISTRY_REPO := determined
 
 CPU_PREFIX_39 := $(REGISTRY_REPO):py-3.9-
@@ -380,12 +380,14 @@ publish-cloud-images:
 		&& packer build $(PACKER_FLAGS) -machine-readable -var "image_suffix=$(SHORT_GIT_HASH)" environments-packer.json \
 		| tee $(ARTIFACTS_DIR)/packer-log
 
-.PHONY: cb-build-tensorflow-cpu
-build-tensorflow-cpu: build-cpu-py-310-base
+.PHONY: cb-build-tensorflow-pytorch-cpu
+cb-build-tensorflow-cpu:
+	# build-cpu-py-310-base  # must be run first
 	docker buildx build -f Dockerfile-default-cpu \
 	    --platform "$(PLATFORMS)" \
 		--build-arg BASE_IMAGE="$(DOCKERHUB_REGISTRY)/$(CPU_PY_310_BASE_NAME)-$(SHORT_GIT_HASH)" \
 		--build-arg TENSORFLOW_PIP="$(TF_PIP_CPU)" \
+		--build-arg TORCH_PIP="$(TORCH2_PIP_CPU)" \
 		--build-arg HOROVOD_PIP="$(HOROVOD_PIP_COMMAND)" \
 		--build-arg HOROVOD_WITH_MPI="$(HOROVOD_WITH_MPI)" \
 		--build-arg HOROVOD_WITHOUT_MPI="$(HOROVOD_WITHOUT_MPI)" \
@@ -395,10 +397,14 @@ build-tensorflow-cpu: build-cpu-py-310-base
 		.
 
 .PHONY: cb-build-tensorflow-cuda
-build-tensorflow-cuda: build-cuda-118-base
+cb-build-tensorflow-cuda:
+	# build-cuda-118-base  # must be run first
 	docker build -f Dockerfile-default-cuda \
 		--build-arg BASE_IMAGE="$(DOCKERHUB_REGISTRY)/$(CUDA_118_BASE_NAME)-$(SHORT_GIT_HASH)" \
 		--build-arg TENSORFLOW_PIP="$(TF_PIP_CUDA)" \
+		--build-arg TORCH_PIP="$(TORCH2_PIP_CUDA)" \
+		--build-arg TORCH_CUDA_ARCH_LIST="6.0;6.1;6.2;7.0;7.5;8.0" \
+		--build-arg APEX_GIT=$(TORCH2_APEX_GIT_URL) \
 		--build-arg HOROVOD_PIP="$(HOROVOD_PIP_COMMAND)" \
 		--build-arg WITH_AWS_TRACE="$(WITH_AWS_TRACE)" \
 		--build-arg INTERNAL_AWS_DS="$(INTERNAL_AWS_DS)" \
