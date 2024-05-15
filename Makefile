@@ -53,7 +53,7 @@ ifeq "$(WITH_MPI)" "1"
 		OFI_BUILD_ARG := WITH_OFI
 	endif
 else
-	PLATFORMS := $(PLATFORM_LINUX_AMD_64),$(PLATFORM_LINUX_ARM_64)
+	PLATFORMS := $(PLATFORM_LINUX_AMD_64)
 	WITH_MPI := 0
 	OFI_BUILD_ARG := WITH_OFI
 	NCCL_BUILD_ARG := WITH_NCCL
@@ -76,7 +76,7 @@ export AWS_MAX_ATTEMPTS=360
 .PHONY: build-cpu-py-39-base
 build-cpu-py-39-base:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	docker buildx create --name builder --driver docker-container --use
+	# docker buildx create --name builder --driver docker-container --use
 	docker buildx build -f Dockerfile-base-cpu \
 	    --platform "$(PLATFORMS)" \
 		--build-arg BASE_IMAGE="$(UBUNTU_IMAGE_TAG)" \
@@ -91,7 +91,7 @@ build-cpu-py-39-base:
 .PHONY: build-cpu-py-310-base
 build-cpu-py-310-base:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	docker buildx create --name builder --driver docker-container --use
+	# docker buildx create --name builder --driver docker-container --use
 	docker buildx build -f Dockerfile-base-cpu \
 	    --platform "$(PLATFORMS)" \
 		--build-arg BASE_IMAGE="$(UBUNTU_IMAGE_TAG)" \
@@ -382,7 +382,7 @@ publish-cloud-images:
 
 .PHONY: cb-build-tensorflow-pytorch-cpu
 cb-build-tensorflow-cpu:
-	# build-cpu-py-310-base  # must be run first
+	make build-cpu-py-310-base  # must be run first
 	docker buildx build -f Dockerfile-default-cpu \
 	    --platform "$(PLATFORMS)" \
 		--build-arg BASE_IMAGE="$(DOCKERHUB_REGISTRY)/$(CPU_PY_310_BASE_NAME)-$(SHORT_GIT_HASH)" \
@@ -398,7 +398,7 @@ cb-build-tensorflow-cpu:
 
 .PHONY: cb-build-tensorflow-cuda
 cb-build-tensorflow-cuda:
-	# build-cuda-118-base  # must be run first
+	make build-cuda-118-base  # must be run first
 	docker build -f Dockerfile-default-cuda \
 		--build-arg BASE_IMAGE="$(DOCKERHUB_REGISTRY)/$(CUDA_118_BASE_NAME)-$(SHORT_GIT_HASH)" \
 		--build-arg TENSORFLOW_PIP="$(TF_PIP_CUDA)" \
