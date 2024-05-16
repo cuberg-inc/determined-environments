@@ -5,8 +5,8 @@ SHORT_GIT_HASH := $(shell git rev-parse --short HEAD)
 
 NGC_REGISTRY := nvcr.io/isv-ngc-partner/determined
 NGC_PUBLISH := 1
-export DOCKERHUB_REGISTRY := determinedai
-export REGISTRY_REPO := environments
+export DOCKERHUB_REGISTRY := us-west1-docker.pkg.dev/core-data-production/determined
+export REGISTRY_REPO := determined
 
 CPU_PREFIX_39 := $(REGISTRY_REPO):py-3.9-
 CPU_PREFIX_310 := $(REGISTRY_REPO):py-3.10-
@@ -53,7 +53,7 @@ ifeq "$(WITH_MPI)" "1"
 		OFI_BUILD_ARG := WITH_OFI
 	endif
 else
-	PLATFORMS := $(PLATFORM_LINUX_AMD_64),$(PLATFORM_LINUX_ARM_64)
+	PLATFORMS := $(PLATFORM_LINUX_AMD_64)
 	WITH_MPI := 0
 	OFI_BUILD_ARG := WITH_OFI
 	NCCL_BUILD_ARG := WITH_NCCL
@@ -76,7 +76,7 @@ export AWS_MAX_ATTEMPTS=360
 .PHONY: build-cpu-py-39-base
 build-cpu-py-39-base:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	docker buildx create --name builder --driver docker-container --use
+	# docker buildx create --name builder --driver docker-container --use
 	docker buildx build -f Dockerfile-base-cpu \
 	    --platform "$(PLATFORMS)" \
 		--build-arg BASE_IMAGE="$(UBUNTU_IMAGE_TAG)" \
@@ -91,7 +91,7 @@ build-cpu-py-39-base:
 .PHONY: build-cpu-py-310-base
 build-cpu-py-310-base:
 	docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-	docker buildx create --name builder --driver docker-container --use
+	# docker buildx create --name builder --driver docker-container --use
 	docker buildx build -f Dockerfile-base-cpu \
 	    --platform "$(PLATFORMS)" \
 		--build-arg BASE_IMAGE="$(UBUNTU_IMAGE_TAG)" \
@@ -114,7 +114,7 @@ build-cuda-113-base:
 		--build-arg "$(OFI_BUILD_ARG)" \
 		--build-arg "$(NCCL_BUILD_ARG)" \
 		-t $(DOCKERHUB_REGISTRY)/$(CUDA_113_BASE_NAME)-$(SHORT_GIT_HASH) \
-		--load \
+		--push \
 		.
 
 .PHONY: build-cuda-118-base
@@ -128,7 +128,7 @@ build-cuda-118-base:
 		--build-arg "$(OFI_BUILD_ARG)" \
 		--build-arg "$(NCCL_BUILD_ARG)" \
 		-t $(DOCKERHUB_REGISTRY)/$(CUDA_118_BASE_NAME)-$(SHORT_GIT_HASH) \
-		--load \
+		--push \
 		.
 
 NGC_PYTORCH_PREFIX := nvcr.io/nvidia/pytorch
@@ -217,8 +217,8 @@ build-deepspeed-gpt-neox: build-cuda-113-base
 		.
 
 TORCH_VERSION := 1.12
-TF_VERSION_SHORT := 2.11
-TF_VERSION := 2.11.1
+TF_VERSION_SHORT := 2.15
+TF_VERSION := 2.15.1
 TF_PIP_CPU := tensorflow-cpu==$(TF_VERSION)
 TF_PIP_CUDA := tensorflow==$(TF_VERSION)
 TORCH_PIP_CPU := torch==1.12.0+cpu torchvision==0.13.0+cpu torchaudio==0.12.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
@@ -380,3 +380,42 @@ publish-cloud-images:
 		&& packer build $(PACKER_FLAGS) -machine-readable -var "image_suffix=$(SHORT_GIT_HASH)" environments-packer.json \
 		| tee $(ARTIFACTS_DIR)/packer-log
 
+.PHONY: cb-build-tensorflow-pytorch-cpu
+cb-build-tensorflow-cpu:
+	make build-cpu-py-310-base  # must be run first
+	docker buildx build -f Dockerfile-default-cpu \
+	    --platform "$(PLATFORMS)" \
+		--build-arg BASE_IMAGE="$(DOCKERHUB_REGISTRY)/$(CPU_PY_310_BASE_NAME)-$(SHORT_GIT_HASH)" \
+		--build-arg TENSORFLOW_PIP="$(TF_PIP_CPU)" \
+		--build-arg TORCH_PIP="$(TORCH2_PIP_CPU)" \
+		--build-arg HOROVOD_PIP="$(HOROVOD_PIP_COMMAND)" \
+		--build-arg HOROVOD_WITH_MPI="$(HOROVOD_WITH_MPI)" \
+		--build-arg HOROVOD_WITHOUT_MPI="$(HOROVOD_WITHOUT_MPI)" \
+		--build-arg HOROVOD_CPU_OPERATIONS="$(HOROVOD_CPU_OPERATIONS)" \
+		-t $(DOCKERHUB_REGISTRY)/$(CPU_TF_ENVIRONMENT_NAME):$(SHORT_GIT_HASH) \
+		--push \
+		.
+
+.PHONY: cb-build-tensorflow-cuda
+cb-build-tensorflow-cuda:
+	make build-cuda-118-base  # must be run first
+	docker build -f Dockerfile-default-cuda \
+		--build-arg BASE_IMAGE="$(DOCKERHUB_REGISTRY)/$(CUDA_118_BASE_NAME)-$(SHORT_GIT_HASH)" \
+		--build-arg TENSORFLOW_PIP="$(TF_PIP_CUDA)" \
+		--build-arg TORCH_PIP="$(TORCH2_PIP_CUDA)" \
+		--build-arg TORCH_CUDA_ARCH_LIST="6.0;6.1;6.2;7.0;7.5;8.0" \
+		--build-arg APEX_GIT=$(TORCH2_APEX_GIT_URL) \
+		--build-arg HOROVOD_PIP="$(HOROVOD_PIP_COMMAND)" \
+		--build-arg WITH_AWS_TRACE="$(WITH_AWS_TRACE)" \
+		--build-arg INTERNAL_AWS_DS="$(INTERNAL_AWS_DS)" \
+		--build-arg INTERNAL_AWS_PATH="$(INTERNAL_AWS_PATH)" \
+		--build-arg "$(OFI_BUILD_ARG)" \
+		--build-arg "$(NCCL_BUILD_ARG)" \
+		--build-arg HOROVOD_WITH_MPI="$(HOROVOD_WITH_MPI)" \
+		--build-arg HOROVOD_WITHOUT_MPI="$(HOROVOD_WITHOUT_MPI)" \
+		--build-arg HOROVOD_CPU_OPERATIONS="$(HOROVOD_CPU_OPERATIONS)" \
+		--build-arg HOROVOD_GPU_OPERATIONS="$(HOROVOD_GPU_OPERATIONS)" \
+		--build-arg HOROVOD_GPU_ALLREDUCE="$(HOROVOD_GPU_ALLREDUCE)" \
+		-t $(DOCKERHUB_REGISTRY)/$(CUDA_TF_ENVIRONMENT_NAME):$(SHORT_GIT_HASH) \
+		.
+	docker push $(DOCKERHUB_REGISTRY)/$(CUDA_TF_ENVIRONMENT_NAME):$(SHORT_GIT_HASH)
