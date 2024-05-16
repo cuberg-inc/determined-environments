@@ -1,3 +1,6 @@
+# NOTE: THIS IS A PUBLIC REPOSITORY DUE TO IT BEING A FORK
+# DO NOT COMMIT ANYTHING THAT COULD BE A SECURITY RISK
+
 # Determined AI Public Environments
 
 This repository contains scripts and configurations used to build Determined environment images and deploy them to AWS. 
