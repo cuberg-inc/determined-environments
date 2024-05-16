@@ -114,7 +114,7 @@ build-cuda-113-base:
 		--build-arg "$(OFI_BUILD_ARG)" \
 		--build-arg "$(NCCL_BUILD_ARG)" \
 		-t $(DOCKERHUB_REGISTRY)/$(CUDA_113_BASE_NAME)-$(SHORT_GIT_HASH) \
-		--load \
+		--push \
 		.
 
 .PHONY: build-cuda-118-base
@@ -128,7 +128,7 @@ build-cuda-118-base:
 		--build-arg "$(OFI_BUILD_ARG)" \
 		--build-arg "$(NCCL_BUILD_ARG)" \
 		-t $(DOCKERHUB_REGISTRY)/$(CUDA_118_BASE_NAME)-$(SHORT_GIT_HASH) \
-		--load \
+		--push \
 		.
 
 NGC_PYTORCH_PREFIX := nvcr.io/nvidia/pytorch
